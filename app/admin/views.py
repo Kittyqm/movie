@@ -4,7 +4,7 @@ import sys
 reload(sys)
 sys.setdefaultencoding('utf-8')
 from . import admin
-from flask import Flask, render_template, flash, redirect, url_for, session, request
+from flask import Flask, render_template, flash, redirect, url_for, session, request, abort
 from app.admin.forms import LoginForm, TagFrom, MovieForm, PrevieForm, PwdForm, AuthForm, RoleForm, AdminForm
 from app.models import Admin, Tag, Movie, Preview, User, Comment, Moviecol, Oplog, Adminlog, Userlog, Auth, Role
 from functools import wraps
@@ -15,7 +15,7 @@ import uuid
 import datetime
 
 
-# 上下问处理器
+# 上下问处理器---获取当前时间
 @admin.context_processor
 def tpl_extra():
     data = dict(
@@ -24,11 +24,34 @@ def tpl_extra():
     return data
 
 
+# 登陆装饰器
 def admin_login_req(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if not session.has_key('admin') or session['admin'] is None:
             return redirect(url_for('admin.login', next=request.url))
+        return f(*args, **kwargs)
+
+    return decorated_function
+
+
+# 权限控制装饰器
+def admin_auth(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        admin = Admin.query.join(
+            Role
+        ).filter(
+            Role.id == Admin.role_id,
+            Admin.id == session["admin_id"]
+        ).first()
+        auths = admin.role.auths
+        auths = list(map(lambda v: v, auths.split(',')))
+        auth_list = Auth.query.all()
+        urls = [v.url for v in auth_list for val in auths if val == v.id]
+        rule = request.url_rule
+        if str(rule) not in urls:
+            abort(404)
         return f(*args, **kwargs)
 
     return decorated_function
@@ -361,9 +384,6 @@ def user_list(page):
     if page is None:
         page = 1
     page_data = User.query.order_by(User.addtime.desc()).paginate(page=page, per_page=10)  # 当此处填写1的时候遍历部分会出错
-    print ('00000000')
-    print page_data
-    print ('00000000')
     return render_template('admin/user_list.html', page_data=page_data)
 
 
@@ -435,7 +455,7 @@ def moviecol_list(page=None):
 @admin.route("/moviecol/del/<int:id>", methods=['GET'])
 @admin_login_req
 def moviecol_del(id=None):
-    """后台评论删除"""
+    """后台电影收藏删除"""
     moviecol_count = Moviecol.query.filter_by(id=id).first_or_404()
     db.session.delete(moviecol_count)
     db.session.commit()
