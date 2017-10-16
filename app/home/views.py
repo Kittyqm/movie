@@ -164,6 +164,7 @@ def loginlog(page=None):
 @user_login_req
 def moviecol():
     """电影收藏"""
+    print ('1111')
     return render_template('home/moviecol.html')
 
 
