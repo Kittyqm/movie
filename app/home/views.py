@@ -1,8 +1,8 @@
 # coding=utf-8
 from . import home
 from flask import render_template, redirect, url_for, flash, session, request
-from app.home.forms import RegistForm, LoginForm, UserdetailForm, PwdForm
-from app.models import User, Userlog,Preview
+from app.home.forms import RegistForm, LoginForm, UserdetailForm, PwdForm, CommentForm
+from app.models import User, Userlog, Preview, Tag, Movie, Comment
 from werkzeug.security import generate_password_hash
 from werkzeug.utils import secure_filename
 from app import db, app
@@ -168,33 +168,137 @@ def moviecol():
     return render_template('home/moviecol.html')
 
 
-@home.route('/comments/')
+@home.route('/comments/<int:page>/')
 @user_login_req
-def comments():
+def comments(page=None):
     """评论"""
-    return render_template('home/comments.html')
+    if page is None:
+        page = 1
+    page_data = Comment.query.join(
+        Movie
+    ).join(
+        User
+    ).filter(
+        Movie.id == Comment.movie_id,
+        User.id == session['user_id']
+    ).order_by(
+        Comment.addtime.desc()
+    ).paginate(page=page, per_page=10)
+    return render_template('home/comments.html',page_data=page_data)
 
 
-@home.route("/")
-def index():
+@home.route("/<int:page>/", methods=['GET'])
+def index(page=None):
     """ 首页视图 """
-    return render_template('home/index.html')
+    tags = Tag.query.all()
+    tid = request.args.get('tid', 0)
+    page_data = Movie.query
+    if int(tid) != 0:
+        page_data = page_data.filter_by(tag_id=int(tid))
+
+    star = request.args.get('star', 0)
+    if int(star) != 0:
+        page_data = page_data.filter_by(star=int(star))
+    time = request.args.get('time', 0)
+    if int(time) != 0:
+        if int(time) == 1:
+            page_data = page_data.order_by(
+                Movie.addtime.desc()
+            )
+        else:
+            page_data = page_data.order_by(
+                Movie.addtime.asc()
+            )
+    pm = request.args.get('pm', 0)
+    if int(pm) == 1:
+        page_data = page_data.order_by(
+            Movie.playnum.desc()
+        )
+    else:
+        page_data = page_data.order_by(
+            Movie.playnum.asc()
+        )
+    cm = request.args.get('cm', 0)
+    if int(cm) == 1:
+        page_data = page_data.order_by(
+            Movie.commentnum.desc()
+        )
+    else:
+        page_data = page_data.order_by(
+            Movie.commentnum.asc()
+        )
+    if page is None:
+        page = 1
+    page_data = page_data.paginate(page=page, per_page=10)
+    p = dict(
+        tid=tid,
+        star=star,
+        time=time,
+        pm=pm,
+        cm=cm,
+    )
+    return render_template('home/index.html', tags=tags, p=p, page_data=page_data)
 
 
 @home.route("/animation/")
 def animation():
     """ 轮播视图 """
     data = Preview.query.all()
-    return render_template('home/animation.html',data=data)
+    return render_template('home/animation.html', data=data)
 
 
-@home.route("/search/")
-def search():
+@home.route("/search/<int:page>/")
+def search(page=None):
     """ 搜索视图 """
-    return render_template('home/search.html')
+    if page is None:
+        page = 1
+    key = request.args.get('key', '')
+    movie_count = Movie.query.filter(
+        Movie.title.ilike('%' + key + '%')
+    ).count()
+    page_data = Movie.query.filter(
+        Movie.title.ilike('%' + key + '%')
+    ).order_by(
+        Movie.addtime.desc()
+    ).paginate(page=page, per_page=10)
+    return render_template('home/search.html', key=key, page_data=page_data, movie_count=movie_count)
 
 
-@home.route("/play/")
-def play():
+@home.route("/play/<int:id>/<int:page>/", methods=['GET', 'POST'])
+def play(id=None, page=None):
     """ 详情视图 """
-    return render_template('home/play.html')
+    movie = Movie.query.join(Tag).filter(
+        Tag.id == Movie.tag_id,
+        Movie.id == int(id)
+    ).first_or_404()
+    if page is None:
+        page = 1
+    page_data = Comment.query.join(
+        Movie
+    ).join(
+        User
+    ).filter(
+        Movie.id == movie.id,
+        User.id == Comment.user_id
+    ).order_by(
+        Comment.addtime.desc()
+    ).paginate(page=page, per_page=10)
+    # comment_count = Comment.query.filter().count()
+    form = CommentForm()
+    movie.playnum = movie.playnum + 1
+    if 'user' in session and form.validate_on_submit():
+        data = form.data
+        comment = Comment(
+            content=data['content'],
+            movie_id=movie.id,
+            user_id=session['user_id']
+        )
+        db.session.add(comment)
+        db.session.commit()
+        movie.commentnum = movie.commentnum + 1
+        flash('添加评论成功!', 'ok')
+        return redirect(url_for('home.play', id=movie.id, page=1))
+    db.session.add(movie)
+    db.session.commit()
+
+    return render_template('home/play.html', movie=movie, form=form, page_data=page_data)
