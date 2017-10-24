@@ -88,7 +88,7 @@
                         <td style="color:#ccc;font-weight:bold;font-style:italic;">
                             <span class="glyphicon glyphicon-comment"></span>&nbsp;评论数量
                         </td>
-                        <td>{{ comment_count }}</td>
+                        <td>{{ movie.commentnum }}</td>
                     </tr>
                     <tr>
                         <td style="color:#ccc;font-weight:bold;font-style:italic;">
@@ -238,7 +238,7 @@ var ue = UE.getEditor('input_content',{
             var mid = {{ movie.id }};
             var uid = {{ session['user_id'] }};
             $.ajax({
-                url:"{{ url_for('home.moviecol') }}",
+                url:"{{ url_for('home.moviecol_add') }}",
                 type:"GET",
                 data:"mid="+mid+"&uid="+uid,
                 dataType:"json",

@@ -2,7 +2,7 @@
 from . import home
 from flask import render_template, redirect, url_for, flash, session, request
 from app.home.forms import RegistForm, LoginForm, UserdetailForm, PwdForm, CommentForm
-from app.models import User, Userlog, Preview, Tag, Movie, Comment
+from app.models import User, Userlog, Preview, Tag, Movie, Comment, Moviecol
 from werkzeug.security import generate_password_hash
 from werkzeug.utils import secure_filename
 from app import db, app
@@ -160,12 +160,47 @@ def loginlog(page=None):
     return render_template('home/loginlog.html', page_data=page_data)
 
 
-@home.route('/moviecol/')
+# 添加电影收藏
+@home.route("/moviecol/add/", methods=["GET"])
 @user_login_req
-def moviecol():
+def moviecol_add():
+    uid = request.args.get("uid", "")
+    mid = request.args.get("mid", "")
+    moviecol = Moviecol.query.filter_by(
+        user_id=int(uid),
+        movie_id=int(mid)
+    ).count()
+    if moviecol == 1:
+        data = dict(ok=0)
+
+    if moviecol == 0:
+        moviecol = Moviecol(
+            user_id=int(uid),
+            movie_id=int(mid)
+        )
+        db.session.add(moviecol)
+        db.session.commit()
+        data = dict(ok=1)
+    import json
+    return json.dumps(data)
+
+@home.route('/moviecol/<int:page>/')
+@user_login_req
+def moviecol(page=None):
     """电影收藏"""
-    print ('1111')
-    return render_template('home/moviecol.html')
+    if page is None:
+        page=1
+    page_data = Moviecol.query.join(
+        Movie
+    ).join(
+        User
+    ).filter(
+        Movie.id == Moviecol.movie_id,
+        User.id == session['user_id']
+    ).order_by(
+        Moviecol.addtime.desc()
+    ).paginate(page=page,per_page=10)
+    return render_template('home/moviecol.html',page_data=page_data)
 
 
 @home.route('/comments/<int:page>/')
@@ -184,7 +219,7 @@ def comments(page=None):
     ).order_by(
         Comment.addtime.desc()
     ).paginate(page=page, per_page=10)
-    return render_template('home/comments.html',page_data=page_data)
+    return render_template('home/comments.html', page_data=page_data)
 
 
 @home.route("/<int:page>/", methods=['GET'])
