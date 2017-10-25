@@ -8,7 +8,7 @@ from flask import Flask, render_template
 from flask_sqlalchemy import SQLAlchemy
 import pymysql
 app = Flask(__name__)
-app.config["SQLALCHEMY_DATABASE_URI"] = "mysql://root:mysql@127.0.0.1:3306/movies"
+app.config["SQLALCHEMY_DATABASE_URI"] = "mysql://root:mysql@127.0.0.1:3306/movie"
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = True
 app.config["SECRET_KEY"] = "3021d87718e043f49dad499fe3494a9d"
 app.config['UP_DIR'] = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'static/uploads/')
